@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Leaflet Poligon Çizimi ve Marker Ekleme</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-draw/dist/leaflet.draw.css" />
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet-draw/dist/leaflet.draw.js"></script>
+    <style>
+        #map {
+            height: 600px;
+            width: 100%;
+        }
+        .distance-tooltip {
+            background-color: white;
+            border: 1px solid black;
+            padding: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div>
+        <label for="coords">Koordinatlar (virgülle ayrılmış lat,lng çiftleri):</label>
+        <input type="text" id="coords" placeholder="37.7749,-122.4194, 37.7849,-122.4094, ...">
+        <button onclick="drawPolygon()">Poligon Çiz</button>
+    </div>
+    <div id="map"></div>
+    <script>
+        // Haritayı oluştur
+        var map = L.map('map').setView([20, 0], 2);
+
+        // Harita katmanını ekle
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        // Draw kontrolünü ekle
+        var drawnItems = new L.FeatureGroup();
+        map.addLayer(drawnItems);
+
+        var drawControl = new L.Control.Draw({
+            edit: {
+                featureGroup: drawnItems
+            },
+            draw: {
+                polygon: true,
+                polyline: false,
+                rectangle: false,
+                circle: false,
+                marker: true,
+                circlemarker: false
+            }
+        });
+        map.addControl(drawControl);
+
+        // Seçilen çalışma alanını tutmak için değişken
+        var selectedArea = null;
+        var distancePolylines = []; // Poligon uzunluklarını tutmak için dizi
+
+        // Çizim tamamlandığında                                           
+        map.on(L.Draw.Event.CREATED, function (event) {
+            var layer = event.layer;
+
+            if (event.layerType === 'polygon') {
+                // Poligonu katmana ekle
+                drawnItems.addLayer(layer);
+
+                // Poligon tıklama olayı
+                layer.on('click', function (e) {
+                    // Daha önce seçili bir alan varsa stilini sıfırla ve mesafeleri kaldır
+                    if (selectedArea) {
+                        selectedArea.setStyle({ color: 'blue' });
+                        distancePolylines.forEach(function(polyline) {
+                            map.removeLayer(polyline);
+                        });
+                        distancePolylines = []; // Mesafeleri sıfırla
+                    }
+
+                    // Yeni seçili alanı güncelle ve stilini değiştir
+                    selectedArea = e.target;
+                    selectedArea.setStyle({ color: 'red' });
+
+                    // Poligon köşeleri arasındaki mesafeleri hesapla ve gösterir.
+                    var latlngs = selectedArea.getLatLngs()[0];
+                    for (var i = 0; i < latlngs.length; i++) {
+                        var nextIndex = (i + 1) % latlngs.length;
+                        var distance = latlngs[i].distanceTo(latlngs[nextIndex]) / 1000; // km cinsinden
+
+                        var midPoint = [
+                            (latlngs[i].lat + latlngs[nextIndex].lat) / 2,
+                            (latlngs[i].lng + latlngs[nextIndex].lng) / 2
+                        ];
+
+                        var polyline = L.polyline([latlngs[i], latlngs[nextIndex]], { color: 'blue' }).addTo(map);
+                        polyline.bindTooltip(distance.toFixed(2) + ' km', { permanent: true, className: "distance-tooltip" }).openTooltip(midPoint);
+                        distancePolylines.push(polyline); // Mesafeyi diziye ekle
+                    }
+                });
+
+            } else if (event.layerType === 'marker') {        
+                if (selectedArea && selectedArea.getBounds().contains(layer.getLatLng())) {
+                    drawnItems.addLayer(layer);
+                } else {
+                    alert('Marker seçili alanın dışında olamaz. Lütfen tekrar deneyin.');
+                }
+            }
+        });
+
+        // Kullanıcıdan koordinatları al ve poligon çiz
+        function drawPolygon() {
+            var input = document.getElementById('coords').value;
+            var coordPairs = input.split(',');
+            var polygonCoords = [];
+
+            for (var i = 0; i < coordPairs.length; i += 2) {
+                var lat = parseFloat(coordPairs[i]);
+                var lng = parseFloat(coordPairs[i + 1]);
+                polygonCoords.push([lat, lng]);
+            }
+
+            // Önceki poligonu temizleme
+            if (window.polygon) {
+                map.removeLayer(window.polygon);
+            }
+
+            // Poligon oluşturma ve haritaya ekleme
+            window.polygon = L.polygon(polygonCoords, {
+                color: 'blue',
+                fillColor: 'blue',
+                fillOpacity: 0.4
+            }).addTo(map);
+
+            // Haritayı poligonun merkezine yakınlaştırma
+            map.fitBounds(window.polygon.getBounds());
+
+            // Poligon tıklama olayını ekle
+            window.polygon.on('click', function (e) {
+                if (selectedArea) {
+                    selectedArea.setStyle({ color: 'blue' });
+                    distancePolylines.forEach(function(polyline) {
+                        map.removeLayer(polyline);
+                    });
+                    distancePolylines = [];
+                }
+
+                selectedArea = e.target;
+                selectedArea.setStyle({ color: 'red' });
+
+                var latlngs = selectedArea.getLatLngs()[0];
+                for (var i = 0; i < latlngs.length; i++) {
+                    var nextIndex = (i + 1) % latlngs.length;
+                    var distance = latlngs[i].distanceTo(latlngs[nextIndex]) / 1000;
+
+                    var midPoint = [
+                        (latlngs[i].lat + latlngs[nextIndex].lat) / 2,
+                        (latlngs[i].lng + latlngs[nextIndex].lng) / 2
+                    ];
+
+                    var polyline = L.polyline([latlngs[i], latlngs[nextIndex]], { color: 'blue' }).addTo(map);
+                    polyline.bindTooltip(distance.toFixed(2) + ' km', { permanent: true, className: "distance-tooltip" }).openTooltip(midPoint);
+                    distancePolylines.push(polyline);
+                }
+            });
+        }
+    </script>
+</body>
+</html>
+
+
