@@ -6,6 +6,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet-draw/dist/leaflet.draw.css" />
     <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
     <script src="https://unpkg.com/leaflet-draw/dist/leaflet.draw.js"></script>
+    <script src="https://unpkg.com/leaflet-pip@1.1.0/leaflet-pip.js"></script>
     <style>
         #map {
             height: 600px;
@@ -46,7 +47,7 @@
                 polygon: true,
                 polyline: false,
                 rectangle: false,
-                circle: false,
+                circle: true,
                 marker: true,
                 circlemarker: false
             }
@@ -98,10 +99,16 @@
                 });
 
             } else if (event.layerType === 'marker') {        
-                if (selectedArea && selectedArea.getBounds().contains(layer.getLatLng())) {
-                    drawnItems.addLayer(layer);
+                if (selectedArea) {
+                    var polygonLayer = L.geoJSON(selectedArea.toGeoJSON());
+                    var results = leafletPip.pointInLayer(layer.getLatLng(), polygonLayer, true);
+                    if (results.length > 0) {
+                        drawnItems.addLayer(layer);
+                    } else {
+                        alert('Marker seçili alanın dışında olamaz. Lütfen tekrar deneyin.');
+                    }
                 } else {
-                    alert('Marker seçili alanın dışında olamaz. Lütfen tekrar deneyin.');
+                    alert('Önce bir poligon seçmelisiniz.');
                 }
             }
         });
@@ -165,5 +172,3 @@
     </script>
 </body>
 </html>
-
-
